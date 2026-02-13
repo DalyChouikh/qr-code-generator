@@ -1,0 +1,37 @@
+# Binaries
+qrgen
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# Go workspace file
+go.work
+go.work.sum
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Generated QR codes (for testing)
+*.png
+*.svg
+!docs/*.png
+!docs/*.svg
+
+# Dependency directories
+vendor/

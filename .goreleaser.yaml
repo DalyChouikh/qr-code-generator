@@ -1,0 +1,78 @@
+version: 2
+
+project_name: qrgen
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: qrgen
+    main: ./cmd/qrgen
+    binary: qrgen
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.ShortCommit}}
+      - -X main.date={{.Date}}
+
+archives:
+  - id: qrgen
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- .Version }}_
+      {{- .Os }}_
+      {{- .Arch }}
+    files:
+      - README.md
+      - LICENSE
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+      - "^ci:"
+      - Merge pull request
+      - Merge branch
+
+release:
+  github:
+    owner: DalyChouikh
+    name: qr-code-generator
+  draft: false
+  prerelease: auto
+  name_template: "v{{.Version}}"
+
+brews:
+  - repository:
+      owner: DalyChouikh
+      name: homebrew-tap
+    name: qrgen
+    homepage: "https://github.com/DalyChouikh/qr-code-generator"
+    description: "A terminal-based QR code generator with an interactive TUI"
+    license: "MIT"
+    install: |
+      bin.install "qrgen"
+    test: |
+      system "#{bin}/qrgen", "--version"
