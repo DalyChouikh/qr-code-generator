@@ -24,10 +24,16 @@ clean:
 test:
 	go test -v ./...
 
-## lint: Run go vet (install golangci-lint for deeper analysis)
+## lint: Run go vet and golangci-lint
 lint:
-	go vet ./...
-	@command -v golangci-lint > /dev/null 2>&1 && golangci-lint run ./... || true
+	@echo "Running go vet..."
+	@go vet ./...
+	@if command -v golangci-lint > /dev/null 2>&1; then \
+		echo "Running golangci-lint..."; \
+		golangci-lint run ./...; \
+	else \
+		echo "golangci-lint not installed, skipping (install: https://golangci-lint.run)"; \
+	fi
 
 ## snapshot: Build a snapshot release (no publish)
 snapshot:
