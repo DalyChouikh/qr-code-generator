@@ -48,7 +48,7 @@ func (g *Generator) Generate() error {
 }
 
 // generatePNG creates a PNG QR code.
-func (g *Generator) generatePNG() error {
+func (g *Generator) generatePNG() (err error) {
 	qrc, err := qrcode.New(g.config.Content, qrcode.Medium)
 	if err != nil {
 		return fmt.Errorf("failed to create QR code: %w", err)
@@ -64,9 +64,13 @@ func (g *Generator) generatePNG() error {
 	if err != nil {
 		return fmt.Errorf("failed to create output file: %w", err)
 	}
-	defer file.Close()
+	defer func() {
+		if cerr := file.Close(); cerr != nil && err == nil {
+			err = fmt.Errorf("failed to close output file: %w", cerr)
+		}
+	}()
 
-	if err := png.Encode(file, img); err != nil {
+	if err = png.Encode(file, img); err != nil {
 		return fmt.Errorf("failed to encode PNG: %w", err)
 	}
 
