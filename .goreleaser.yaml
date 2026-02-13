@@ -68,6 +68,7 @@ brews:
   - repository:
       owner: DalyChouikh
       name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
     name: qrgen
     homepage: "https://github.com/DalyChouikh/qr-code-generator"
     description: "A terminal-based QR code generator with an interactive TUI"
