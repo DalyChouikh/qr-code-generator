@@ -23,6 +23,14 @@ A beautiful terminal-based QR code generator built with Go, featuring an interac
 curl -fsSL https://raw.githubusercontent.com/DalyChouikh/qr-code-generator/main/install.sh | sh
 ```
 
+### Quick Install (Windows)
+
+Open PowerShell and run:
+
+```powershell
+irm https://raw.githubusercontent.com/DalyChouikh/qr-code-generator/main/install.ps1 | iex
+```
+
 ### Homebrew (macOS / Linux)
 
 ```bash
