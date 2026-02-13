@@ -1,5 +1,5 @@
 # Binaries
-qrgen
+/qrgen
 *.exe
 *.exe~
 *.dll

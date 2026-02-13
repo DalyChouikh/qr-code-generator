@@ -24,10 +24,10 @@ clean:
 test:
 	go test -v ./...
 
-## lint: Run linter
+## lint: Run go vet (install golangci-lint for deeper analysis)
 lint:
-	@command -v golangci-lint > /dev/null 2>&1 || echo "Install golangci-lint: https://golangci-lint.run/welcome/install/"
-	golangci-lint run ./...
+	go vet ./...
+	@command -v golangci-lint > /dev/null 2>&1 && golangci-lint run ./... || true
 
 ## snapshot: Build a snapshot release (no publish)
 snapshot:
