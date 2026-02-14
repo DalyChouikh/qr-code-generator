@@ -38,15 +38,22 @@ type Model struct {
 	step Step
 
 	// Input fields
-	urlInput      textinput.Model
-	sizeInput     textinput.Model
-	outputInput   textinput.Model
-	colorInput    textinput.Model
+	urlInput    textinput.Model
+	sizeInput   textinput.Model
+	outputInput textinput.Model
+	colorInput  textinput.Model
 
 	// Selection states
 	formatIndex int // 0 = PNG, 1 = SVG
 	colorIndex  int // Index in predefined colors, -1 for custom
 	colorNames  []string
+
+	// File browser
+	fileBrowserActive bool
+	filePicker        FilePicker
+
+	// QR terminal preview
+	qrPreview string
 
 	// UI state
 	err         error
@@ -106,6 +113,7 @@ func New() Model {
 		formatIndex: 0,
 		colorIndex:  0, // Default to black
 		colorNames:  config.GetPredefinedColorNames(),
+		filePicker:  NewFilePicker(),
 	}
 }
 
@@ -138,6 +146,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "esc":
 			if m.step > StepURL && m.step < StepComplete {
+				// Let step handlers manage esc in sub-modes
+				if m.step == StepColor && m.colorIndex == -1 {
+					break
+				}
+				if m.step == StepOutput && m.fileBrowserActive {
+					break
+				}
 				m.step--
 				m.err = nil
 				return m, m.focusStep()
@@ -171,7 +186,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case StepSize:
 		m.sizeInput, cmd = m.sizeInput.Update(msg)
 	case StepOutput:
-		m.outputInput, cmd = m.outputInput.Update(msg)
+		if m.fileBrowserActive {
+			cmd = m.filePicker.UpdateTextInput(msg)
+		} else {
+			m.outputInput, cmd = m.outputInput.Update(msg)
+		}
 	case StepColor:
 		if m.colorIndex == -1 {
 			m.colorInput, cmd = m.colorInput.Update(msg)
@@ -313,7 +332,17 @@ func (m Model) handleSizeStep(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) handleOutputStep(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if m.fileBrowserActive {
+		return m.handleOutputFileBrowser(msg)
+	}
+
 	switch msg.String() {
+	case "tab":
+		// Switch to file browser mode
+		m.fileBrowserActive = true
+		m.filePicker.Refresh()
+		m.outputInput.Blur()
+		return m, nil
 	case "enter":
 		output := strings.TrimSpace(m.outputInput.Value())
 		if output == "" {
@@ -348,6 +377,41 @@ func (m Model) handleOutputStep(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
+func (m Model) handleOutputFileBrowser(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "tab":
+		// Switch back to manual input mode
+		m.fileBrowserActive = false
+		m.filePicker.Reset()
+		return m, m.outputInput.Focus()
+	case "esc":
+		if m.filePicker.nameMode {
+			// Exit filename input, back to browsing
+			cmd := m.filePicker.Update(msg)
+			return m, cmd
+		}
+		// Exit file browser, back to manual input
+		m.fileBrowserActive = false
+		m.filePicker.Reset()
+		return m, m.outputInput.Focus()
+	}
+
+	cmd := m.filePicker.Update(msg)
+
+	// Check if the file picker has confirmed a selection
+	if m.filePicker.IsConfirmed() {
+		path := m.filePicker.SelectedPath()
+		m.config.SetOutputPath(path)
+		m.err = nil
+		m.step = StepConfirm
+		m.fileBrowserActive = false
+		m.filePicker.Reset()
+		return m, nil
+	}
+
+	return m, cmd
+}
+
 func (m Model) handleConfirmStep(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "enter", "y", "Y":
@@ -358,11 +422,18 @@ func (m Model) handleConfirmStep(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.successPath = m.config.OutputPath
+
+		// Generate terminal preview for scanning
+		if preview, err := generator.GenerateTerminalPreview(m.config.Content); err == nil {
+			m.qrPreview = preview
+		}
+
 		m.step = StepComplete
 		return m, nil
-	case "n", "N", "esc":
+	case "n", "N":
 		// Go back to URL step
 		m.step = StepURL
+		m.fileBrowserActive = false
 		m.urlInput.Focus()
 		return m, textinput.Blink
 	}
@@ -389,6 +460,12 @@ func (m *Model) focusStep() tea.Cmd {
 	case StepSize:
 		return m.sizeInput.Focus()
 	case StepOutput:
+		if m.fileBrowserActive {
+			if m.filePicker.nameMode {
+				return m.filePicker.nameInput.Focus()
+			}
+			return nil
+		}
 		return m.outputInput.Focus()
 	case StepColor:
 		if m.colorIndex == -1 {
@@ -554,13 +631,19 @@ func (m Model) renderOutputStep() string {
 	s.WriteString(m.styles.Header.Render("Step 5: Output Location"))
 	s.WriteString("\n\n")
 
-	label := m.styles.LabelFocused.Render("Filename or path:")
-	s.WriteString(label + "\n")
-	s.WriteString(m.styles.FocusedInput.Render(m.outputInput.View()))
-	s.WriteString("\n\n")
-	s.WriteString(m.styles.Label.Render("Leave empty for 'qrcode' in current directory"))
-	s.WriteString("\n")
-	s.WriteString(m.styles.Label.Render("Use ~ for home directory, e.g., ~/Downloads/myqr"))
+	if m.fileBrowserActive {
+		s.WriteString(m.filePicker.View(m.styles))
+	} else {
+		label := m.styles.LabelFocused.Render("Filename or path:")
+		s.WriteString(label + "\n")
+		s.WriteString(m.styles.FocusedInput.Render(m.outputInput.View()))
+		s.WriteString("\n\n")
+		s.WriteString(m.styles.Label.Render("Leave empty for 'qrcode' in current directory"))
+		s.WriteString("\n")
+		s.WriteString(m.styles.Label.Render("Use ~ for home directory, e.g., ~/Downloads/myqr"))
+		s.WriteString("\n\n")
+		s.WriteString(m.styles.Label.Render("Press Tab to browse files"))
+	}
 
 	return s.String()
 }
@@ -609,7 +692,14 @@ func (m Model) renderCompleteStep() string {
 	successBox := m.styles.Success.Render(fmt.Sprintf("✓ QR code generated successfully!\n\nSaved to:\n%s", m.successPath))
 	s.WriteString(successBox)
 
-	s.WriteString("\n\n")
+	if m.qrPreview != "" {
+		s.WriteString("\n\n")
+		s.WriteString(m.styles.Header.Render("Scan with your phone:"))
+		s.WriteString("\n\n")
+		s.WriteString(m.qrPreview)
+	}
+
+	s.WriteString("\n")
 	s.WriteString(m.styles.Label.Render("Press [R] to create another, [Q/Enter] to exit"))
 
 	return s.String()
@@ -619,8 +709,18 @@ func (m Model) renderHelp() string {
 	var help string
 
 	switch m.step {
-	case StepURL, StepSize, StepOutput:
+	case StepURL, StepSize:
 		help = "Enter: Confirm • Esc: Back • Ctrl+C: Quit"
+	case StepOutput:
+		if m.fileBrowserActive {
+			if m.filePicker.nameMode {
+				help = "Enter: Confirm • Esc: Back to browsing • Ctrl+C: Quit"
+			} else {
+				help = "↑/↓: Navigate • Enter: Open/Select • N: New filename • ~: Home • Tab: Manual input • Ctrl+C: Quit"
+			}
+		} else {
+			help = "Enter: Confirm • Tab: Browse files • Esc: Back • Ctrl+C: Quit"
+		}
 	case StepFormat:
 		help = "←/→: Select • Enter/Space: Confirm • Esc: Back • Ctrl+C: Quit"
 	case StepColor:
@@ -630,7 +730,7 @@ func (m Model) renderHelp() string {
 			help = "↑/↓: Select • Enter/Space: Confirm • C: Custom color • Esc: Back • Ctrl+C: Quit"
 		}
 	case StepConfirm:
-		help = "Y/Enter: Generate • N/Esc: Go Back • Ctrl+C: Quit"
+		help = "Y/Enter: Generate • N: Go Back • Esc: Previous step • Ctrl+C: Quit"
 	case StepComplete:
 		help = "R: Create another • Q/Enter: Exit"
 	}
