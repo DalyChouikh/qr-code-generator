@@ -556,10 +556,9 @@ func (m Model) renderFormatStep() string {
 		svgStyle = m.styles.ButtonActive
 	}
 
-	s.WriteString("  ")
-	s.WriteString(pngStyle.Render("  PNG  "))
-	s.WriteString("    ")
-	s.WriteString(svgStyle.Render("  SVG  "))
+	pngBtn := pngStyle.Render("PNG")
+	svgBtn := svgStyle.Render("SVG")
+	s.WriteString(lipgloss.JoinHorizontal(lipgloss.Top, "  ", pngBtn, "    ", svgBtn))
 
 	s.WriteString("\n\n")
 	s.WriteString(m.styles.Label.Render("PNG: Raster image, best for most uses"))

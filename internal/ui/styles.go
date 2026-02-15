@@ -121,9 +121,9 @@ func NewStyles() *Styles {
 
 		Button: lipgloss.NewStyle().
 			Foreground(subtleColor).
-			Background(bgColor).
 			Padding(0, 3).
-			MarginRight(2).
+			Width(13).
+			Align(lipgloss.Center).
 			BorderStyle(lipgloss.RoundedBorder()).
 			BorderForeground(subtleColor),
 
@@ -131,7 +131,8 @@ func NewStyles() *Styles {
 			Foreground(lipgloss.Color("#FFFFFF")).
 			Background(primaryColor).
 			Padding(0, 3).
-			MarginRight(2).
+			Width(13).
+			Align(lipgloss.Center).
 			Bold(true).
 			BorderStyle(lipgloss.RoundedBorder()).
 			BorderForeground(primaryColor),
