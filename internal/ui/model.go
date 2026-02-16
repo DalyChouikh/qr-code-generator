@@ -9,6 +9,8 @@ import (
 
 	"github.com/DalyChouikh/internal/config"
 	"github.com/DalyChouikh/internal/generator"
+	"github.com/DalyChouikh/internal/history"
+	"github.com/DalyChouikh/internal/templates"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -18,16 +20,19 @@ import (
 type Step int
 
 const (
-	StepURL Step = iota
+	StepContentType Step = iota
+	StepURL
+	StepTemplate
 	StepFormat
 	StepColor
+	StepBgColor
 	StepSize
 	StepOutput
 	StepConfirm
 	StepComplete
 )
 
-const totalSteps = 6
+const totalVisibleSteps = 9
 
 // Model represents the application state.
 type Model struct {
@@ -47,6 +52,15 @@ type Model struct {
 	formatIndex int // 0 = PNG, 1 = SVG
 	colorIndex  int // Index in predefined colors, -1 for custom
 	colorNames  []string
+
+	// Content type selection
+	contentTypes   []templates.ContentTypeInfo
+	contentTypeIdx int
+	templateWizard *TemplateWizard
+
+	// Background color
+	bgColorIndex int
+	bgColorInput textinput.Model
 
 	// File browser
 	fileBrowserActive bool
@@ -75,7 +89,6 @@ func New() Model {
 	urlInput.Placeholder = "https://example.com"
 	urlInput.CharLimit = 2048
 	urlInput.Width = 46
-	urlInput.Focus()
 
 	// Size input
 	sizeInput := textinput.New()
@@ -95,6 +108,12 @@ func New() Model {
 	colorInput.CharLimit = 7
 	colorInput.Width = 46
 
+	// Background color input (for custom hex)
+	bgColorInput := textinput.New()
+	bgColorInput.Placeholder = "#FFFFFF"
+	bgColorInput.CharLimit = 7
+	bgColorInput.Width = 46
+
 	// Get home directory for default output path
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
@@ -103,17 +122,21 @@ func New() Model {
 	cfg.OutputPath = filepath.Join(homeDir, "qrcode.png")
 
 	return Model{
-		styles:      styles,
-		config:      cfg,
-		step:        StepURL,
-		urlInput:    urlInput,
-		sizeInput:   sizeInput,
-		outputInput: outputInput,
-		colorInput:  colorInput,
-		formatIndex: 0,
-		colorIndex:  0, // Default to black
-		colorNames:  config.GetPredefinedColorNames(),
-		filePicker:  NewFilePicker(),
+		styles:         styles,
+		config:         cfg,
+		step:           StepContentType,
+		urlInput:       urlInput,
+		sizeInput:      sizeInput,
+		outputInput:    outputInput,
+		colorInput:     colorInput,
+		formatIndex:    0,
+		colorIndex:     0,
+		colorNames:     config.GetPredefinedColorNames(),
+		contentTypes:   templates.AvailableTypes(),
+		contentTypeIdx: 0,
+		bgColorIndex:   0,
+		bgColorInput:   bgColorInput,
+		filePicker:     NewFilePicker(),
 	}
 }
 
@@ -145,15 +168,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, tea.Quit
 			}
 		case "esc":
-			if m.step > StepURL && m.step < StepComplete {
+			if m.step > StepContentType && m.step < StepComplete {
 				// Let step handlers manage esc in sub-modes
 				if m.step == StepColor && m.colorIndex == -1 {
+					break
+				}
+				if m.step == StepBgColor && m.bgColorIndex == -1 {
 					break
 				}
 				if m.step == StepOutput && m.fileBrowserActive {
 					break
 				}
-				m.step--
+				m.step = m.previousStep()
 				m.err = nil
 				return m, m.focusStep()
 			}
@@ -161,12 +187,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Step-specific handlers
 		switch m.step {
+		case StepContentType:
+			return m.handleContentTypeStep(msg)
 		case StepURL:
 			return m.handleURLStep(msg)
+		case StepTemplate:
+			return m.handleTemplateStep(msg)
 		case StepFormat:
 			return m.handleFormatStep(msg)
 		case StepColor:
 			return m.handleColorStep(msg)
+		case StepBgColor:
+			return m.handleBgColorStep(msg)
 		case StepSize:
 			return m.handleSizeStep(msg)
 		case StepOutput:
@@ -183,6 +215,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch m.step {
 	case StepURL:
 		m.urlInput, cmd = m.urlInput.Update(msg)
+	case StepTemplate:
+		if m.templateWizard != nil {
+			cmd = m.templateWizard.UpdateBlink(msg)
+		}
 	case StepSize:
 		m.sizeInput, cmd = m.sizeInput.Update(msg)
 	case StepOutput:
@@ -194,6 +230,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case StepColor:
 		if m.colorIndex == -1 {
 			m.colorInput, cmd = m.colorInput.Update(msg)
+		}
+	case StepBgColor:
+		if m.bgColorIndex == -1 {
+			m.bgColorInput, cmd = m.bgColorInput.Update(msg)
 		}
 	}
 	if cmd != nil {
@@ -268,9 +308,9 @@ func (m Model) handleColorStep(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 			m.config.Foreground = color
 			m.err = nil
-			m.step = StepSize
+			m.step = StepBgColor
 			m.colorInput.Blur()
-			return m, m.sizeInput.Focus()
+			return m, nil
 		case "esc":
 			m.colorIndex = 0
 			m.colorInput.Blur()
@@ -300,8 +340,8 @@ func (m Model) handleColorStep(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		colorName := m.colorNames[m.colorIndex]
 		m.config.Foreground = config.PredefinedColors[colorName]
 		m.err = nil
-		m.step = StepSize
-		return m, m.sizeInput.Focus()
+		m.step = StepBgColor
+		return m, nil
 	}
 	return m, nil
 }
@@ -423,6 +463,18 @@ func (m Model) handleConfirmStep(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		m.successPath = m.config.OutputPath
 
+		// Save to history
+		if store, err := history.NewStore(); err == nil {
+			_ = store.Add(history.Entry{
+				Content:    m.config.Content,
+				Format:     string(m.config.Format),
+				Size:       m.config.Size,
+				FgColor:    config.ColorToHex(m.config.Foreground),
+				BgColor:    config.ColorToHex(m.config.Background),
+				OutputPath: m.config.OutputPath,
+			})
+		}
+
 		// Generate terminal preview for scanning
 		if preview, err := generator.GenerateTerminalPreview(m.config.Content); err == nil {
 			m.qrPreview = preview
@@ -431,11 +483,10 @@ func (m Model) handleConfirmStep(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.step = StepComplete
 		return m, nil
 	case "n", "N":
-		// Go back to URL step
-		m.step = StepURL
+		// Go back to content type step
+		m.step = StepContentType
 		m.fileBrowserActive = false
-		m.urlInput.Focus()
-		return m, textinput.Blink
+		return m, nil
 	}
 	return m, nil
 }
@@ -452,11 +503,167 @@ func (m Model) handleCompleteStep(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m Model) handleContentTypeStep(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "up", "k":
+		if m.contentTypeIdx > 0 {
+			m.contentTypeIdx--
+		}
+	case "down", "j":
+		if m.contentTypeIdx < len(m.contentTypes)-1 {
+			m.contentTypeIdx++
+		}
+	case "enter", " ":
+		ct := m.contentTypes[m.contentTypeIdx].Type
+		m.err = nil
+		switch ct {
+		case templates.ContentURL, templates.ContentText:
+			m.step = StepURL
+			return m, m.urlInput.Focus()
+		default:
+			// WiFi, vCard, Email, SMS → template wizard
+			tw := NewTemplateWizard(ct)
+			m.templateWizard = &tw
+			m.step = StepTemplate
+			return m, textinput.Blink
+		}
+	}
+	return m, nil
+}
+
+func (m Model) handleTemplateStep(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if m.templateWizard == nil {
+		return m, nil
+	}
+
+	cmd := m.templateWizard.Update(msg)
+
+	if m.templateWizard.IsConfirmed() {
+		m.config.Content = m.templateWizard.Result()
+		m.step = StepFormat
+		m.err = nil
+		return m, nil
+	}
+
+	return m, cmd
+}
+
+func (m Model) handleBgColorStep(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// Handle custom color input if selected
+	if m.bgColorIndex == -1 {
+		switch msg.String() {
+		case "enter":
+			hexColor := strings.TrimSpace(m.bgColorInput.Value())
+			if hexColor == "" {
+				m.bgColorIndex = 0 // Reset to first predefined color
+				return m, nil
+			}
+			bgColor, err := config.ParseHexColor(hexColor)
+			if err != nil {
+				m.err = fmt.Errorf("invalid hex color: %s", hexColor)
+				return m, nil
+			}
+			m.config.Background = bgColor
+			m.err = nil
+			m.step = StepSize
+			m.bgColorInput.Blur()
+			return m, m.sizeInput.Focus()
+		case "esc":
+			m.bgColorIndex = 0
+			m.bgColorInput.Blur()
+			return m, nil
+		}
+
+		var cmd tea.Cmd
+		m.bgColorInput, cmd = m.bgColorInput.Update(msg)
+		return m, cmd
+	}
+
+	switch msg.String() {
+	case "up", "k":
+		if m.bgColorIndex > 0 {
+			m.bgColorIndex--
+		}
+	case "down", "j":
+		if m.bgColorIndex < len(m.colorNames)-1 {
+			m.bgColorIndex++
+		}
+	case "c":
+		m.bgColorIndex = -1
+		m.bgColorInput.Focus()
+		return m, textinput.Blink
+	case "enter", " ":
+		colorName := m.colorNames[m.bgColorIndex]
+		m.config.Background = config.PredefinedColors[colorName]
+		m.err = nil
+		m.step = StepSize
+		return m, m.sizeInput.Focus()
+	}
+	return m, nil
+}
+
+// previousStep returns the step to go back to.
+func (m Model) previousStep() Step {
+	switch m.step {
+	case StepURL, StepTemplate:
+		return StepContentType
+	case StepFormat:
+		ct := m.contentTypes[m.contentTypeIdx].Type
+		if ct == templates.ContentURL || ct == templates.ContentText {
+			return StepURL
+		}
+		return StepTemplate
+	case StepColor:
+		return StepFormat
+	case StepBgColor:
+		return StepColor
+	case StepSize:
+		return StepBgColor
+	case StepOutput:
+		return StepSize
+	case StepConfirm:
+		return StepOutput
+	default:
+		return m.step
+	}
+}
+
+// stepDisplayNumber returns the visual step number for the progress bar.
+func (m Model) stepDisplayNumber() int {
+	switch m.step {
+	case StepContentType:
+		return 1
+	case StepURL, StepTemplate:
+		return 2
+	case StepFormat:
+		return 3
+	case StepColor:
+		return 4
+	case StepBgColor:
+		return 5
+	case StepSize:
+		return 6
+	case StepOutput:
+		return 7
+	case StepConfirm:
+		return 8
+	case StepComplete:
+		return 9
+	default:
+		return 0
+	}
+}
+
 // focusStep focuses the text input for the current step.
 func (m *Model) focusStep() tea.Cmd {
 	switch m.step {
 	case StepURL:
 		return m.urlInput.Focus()
+	case StepTemplate:
+		if m.templateWizard != nil {
+			m.templateWizard.focusFirst()
+			return textinput.Blink
+		}
 	case StepSize:
 		return m.sizeInput.Focus()
 	case StepOutput:
@@ -470,6 +677,10 @@ func (m *Model) focusStep() tea.Cmd {
 	case StepColor:
 		if m.colorIndex == -1 {
 			return m.colorInput.Focus()
+		}
+	case StepBgColor:
+		if m.bgColorIndex == -1 {
+			return m.bgColorInput.Focus()
 		}
 	default:
 		return nil
@@ -493,18 +704,24 @@ func (m Model) View() string {
 
 	// Progress bar
 	if m.step < StepComplete {
-		s.WriteString(m.styles.RenderProgressBar(int(m.step)+1, totalSteps))
+		s.WriteString(m.styles.RenderProgressBar(m.stepDisplayNumber(), totalVisibleSteps))
 		s.WriteString("\n\n")
 	}
 
 	// Current step content
 	switch m.step {
+	case StepContentType:
+		s.WriteString(m.renderContentTypeStep())
 	case StepURL:
 		s.WriteString(m.renderURLStep())
+	case StepTemplate:
+		s.WriteString(m.renderTemplateStep())
 	case StepFormat:
 		s.WriteString(m.renderFormatStep())
 	case StepColor:
 		s.WriteString(m.renderColorStep())
+	case StepBgColor:
+		s.WriteString(m.renderBgColorStep())
 	case StepSize:
 		s.WriteString(m.renderSizeStep())
 	case StepOutput:
@@ -528,10 +745,93 @@ func (m Model) View() string {
 	return m.styles.App.Render(s.String())
 }
 
+func (m Model) renderContentTypeStep() string {
+	var s strings.Builder
+
+	s.WriteString(m.styles.Header.Render("Step 1: What do you want to encode?"))
+	s.WriteString("\n\n")
+
+	for i, ct := range m.contentTypes {
+		var line string
+		if i == m.contentTypeIdx {
+			cursor := m.styles.OptionActive.Render("▸")
+			name := m.styles.OptionActive.Render(ct.Icon + " " + ct.Name)
+			desc := lipgloss.NewStyle().Foreground(primaryColor).Italic(true).Render(" — " + ct.Description)
+			line = fmt.Sprintf("%s %s%s", cursor, name, desc)
+		} else {
+			cursor := m.styles.Option.Render(" ")
+			name := m.styles.Option.Render(ct.Icon + " " + ct.Name)
+			desc := lipgloss.NewStyle().Foreground(subtleColor).Italic(true).Render(" — " + ct.Description)
+			line = fmt.Sprintf("%s %s%s", cursor, name, desc)
+		}
+		s.WriteString(line + "\n")
+	}
+
+	return s.String()
+}
+
+func (m Model) renderTemplateStep() string {
+	var s strings.Builder
+
+	ct := m.contentTypes[m.contentTypeIdx]
+	s.WriteString(m.styles.Header.Render(fmt.Sprintf("Step 2: %s %s Details", ct.Icon, ct.Name)))
+	s.WriteString("\n\n")
+
+	if m.templateWizard != nil {
+		s.WriteString(m.templateWizard.View(m.styles))
+	}
+
+	s.WriteString("\n\n")
+	s.WriteString(m.styles.Label.Render("Tab/↓: Next field • Shift+Tab/↑: Previous • Enter: Confirm"))
+
+	return s.String()
+}
+
+func (m Model) renderBgColorStep() string {
+	var s strings.Builder
+
+	s.WriteString(m.styles.Header.Render("Step 5: Background Color"))
+	s.WriteString("\n\n")
+
+	if m.bgColorIndex == -1 {
+		// Custom color input mode
+		s.WriteString(m.styles.LabelFocused.Render("Enter hex color:"))
+		s.WriteString("\n")
+		s.WriteString(m.styles.FocusedInput.Render(m.bgColorInput.View()))
+		s.WriteString("\n\n")
+		s.WriteString(m.styles.Label.Render("Press ESC to go back to color selection"))
+	} else {
+		// Color selection mode
+		for i, name := range m.colorNames {
+			var line string
+			color := config.PredefinedColors[name]
+			colorBox := lipgloss.NewStyle().
+				Background(lipgloss.Color(config.ColorToHex(color))).
+				Render("  ")
+
+			if i == m.bgColorIndex {
+				cursor := m.styles.OptionActive.Render("▸")
+				colorName := m.styles.OptionActive.Render(name)
+				line = fmt.Sprintf("%s %s %s", cursor, colorBox, colorName)
+			} else {
+				cursor := m.styles.Option.Render(" ")
+				colorName := m.styles.Option.Render(name)
+				line = fmt.Sprintf("%s %s %s", cursor, colorBox, colorName)
+			}
+			s.WriteString(line + "\n")
+		}
+
+		s.WriteString("\n")
+		s.WriteString(m.styles.Label.Render("Press 'c' for custom hex color"))
+	}
+
+	return s.String()
+}
+
 func (m Model) renderURLStep() string {
 	var s strings.Builder
 
-	s.WriteString(m.styles.Header.Render("Step 1: Enter URL or Text"))
+	s.WriteString(m.styles.Header.Render("Step 2: Enter URL or Text"))
 	s.WriteString("\n\n")
 
 	label := m.styles.LabelFocused.Render("Content:")
@@ -544,7 +844,7 @@ func (m Model) renderURLStep() string {
 func (m Model) renderFormatStep() string {
 	var s strings.Builder
 
-	s.WriteString(m.styles.Header.Render("Step 2: Choose Output Format"))
+	s.WriteString(m.styles.Header.Render("Step 3: Choose Output Format"))
 	s.WriteString("\n\n")
 
 	pngStyle := m.styles.Button
@@ -571,7 +871,7 @@ func (m Model) renderFormatStep() string {
 func (m Model) renderColorStep() string {
 	var s strings.Builder
 
-	s.WriteString(m.styles.Header.Render("Step 3: Choose QR Code Color"))
+	s.WriteString(m.styles.Header.Render("Step 4: Foreground Color"))
 	s.WriteString("\n\n")
 
 	if m.colorIndex == -1 {
@@ -612,7 +912,7 @@ func (m Model) renderColorStep() string {
 func (m Model) renderSizeStep() string {
 	var s strings.Builder
 
-	s.WriteString(m.styles.Header.Render("Step 4: Set Dimensions"))
+	s.WriteString(m.styles.Header.Render("Step 6: Set Dimensions"))
 	s.WriteString("\n\n")
 
 	label := m.styles.LabelFocused.Render("Size (64-4096 pixels):")
@@ -627,7 +927,7 @@ func (m Model) renderSizeStep() string {
 func (m Model) renderOutputStep() string {
 	var s strings.Builder
 
-	s.WriteString(m.styles.Header.Render("Step 5: Output Location"))
+	s.WriteString(m.styles.Header.Render("Step 7: Output Location"))
 	s.WriteString("\n\n")
 
 	if m.fileBrowserActive {
@@ -650,7 +950,7 @@ func (m Model) renderOutputStep() string {
 func (m Model) renderConfirmStep() string {
 	var s strings.Builder
 
-	s.WriteString(m.styles.Header.Render("Step 6: Review & Generate"))
+	s.WriteString(m.styles.Header.Render("Step 8: Review & Generate"))
 	s.WriteString("\n\n")
 
 	// Preview box
@@ -668,17 +968,30 @@ func (m Model) renderConfirmStep() string {
 func (m Model) renderPreview() string {
 	var lines []string
 
+	// Show content type
+	ct := m.contentTypes[m.contentTypeIdx]
+	lines = append(lines, fmt.Sprintf("📋 Type:     %s %s", ct.Icon, ct.Name))
 	lines = append(lines, fmt.Sprintf("📝 Content:  %s", truncateString(m.config.Content, 40)))
 	lines = append(lines, fmt.Sprintf("📄 Format:   %s", strings.ToUpper(string(m.config.Format))))
 
-	colorName := "Custom"
+	fgName := "Custom"
 	for name, c := range config.PredefinedColors {
 		if c == m.config.Foreground {
-			colorName = name
+			fgName = name
 			break
 		}
 	}
-	lines = append(lines, fmt.Sprintf("🎨 Color:    %s (%s)", colorName, config.ColorToHex(m.config.Foreground)))
+	lines = append(lines, fmt.Sprintf("🎨 FG Color: %s (%s)", fgName, config.ColorToHex(m.config.Foreground)))
+
+	bgName := "Custom"
+	for name, c := range config.PredefinedColors {
+		if c == m.config.Background {
+			bgName = name
+			break
+		}
+	}
+	lines = append(lines, fmt.Sprintf("🖼️  BG Color: %s (%s)", bgName, config.ColorToHex(m.config.Background)))
+
 	lines = append(lines, fmt.Sprintf("📐 Size:     %dx%d pixels", m.config.Size, m.config.Size))
 	lines = append(lines, fmt.Sprintf("💾 Output:   %s", truncateString(m.config.OutputPath, 40)))
 
@@ -708,8 +1021,12 @@ func (m Model) renderHelp() string {
 	var help string
 
 	switch m.step {
+	case StepContentType:
+		help = "↑/↓: Select • Enter/Space: Confirm • Ctrl+C: Quit"
 	case StepURL, StepSize:
 		help = "Enter: Confirm • Esc: Back • Ctrl+C: Quit"
+	case StepTemplate:
+		help = "Tab/↓: Next field • Shift+Tab/↑: Prev • Enter: Confirm • Esc: Back • Ctrl+C: Quit"
 	case StepOutput:
 		if m.fileBrowserActive {
 			if m.filePicker.nameMode {
@@ -724,6 +1041,12 @@ func (m Model) renderHelp() string {
 		help = "←/→: Select • Enter/Space: Confirm • Esc: Back • Ctrl+C: Quit"
 	case StepColor:
 		if m.colorIndex == -1 {
+			help = "Enter: Confirm • Esc: Cancel custom color • Ctrl+C: Quit"
+		} else {
+			help = "↑/↓: Select • Enter/Space: Confirm • C: Custom color • Esc: Back • Ctrl+C: Quit"
+		}
+	case StepBgColor:
+		if m.bgColorIndex == -1 {
 			help = "Enter: Confirm • Esc: Cancel custom color • Ctrl+C: Quit"
 		} else {
 			help = "↑/↓: Select • Enter/Space: Confirm • C: Custom color • Esc: Back • Ctrl+C: Quit"
