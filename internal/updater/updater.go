@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -271,7 +272,10 @@ func replaceBinary(newBinary []byte) error {
 	// Write new binary to a temp file in the same directory (same filesystem for rename)
 	tmpFile, err := os.CreateTemp(dir, base+".update-*")
 	if err != nil {
-		return fmt.Errorf("cannot create temp file (do you have write permission to %s?): %w", dir, err)
+		if errors.Is(err, os.ErrPermission) {
+			return fmt.Errorf("permission denied writing to %s\n\n%s", dir, elevationHint())
+		}
+		return fmt.Errorf("cannot create temp file in %s: %w", dir, err)
 	}
 	tmpPath := tmpFile.Name()
 
@@ -300,6 +304,9 @@ func replaceBinary(newBinary []byte) error {
 		oldPath := execPath + ".old"
 		_ = os.Remove(oldPath) // ignore error if it doesn't exist
 		if err = os.Rename(execPath, oldPath); err != nil {
+			if errors.Is(err, os.ErrPermission) {
+				return fmt.Errorf("permission denied\n\n%s", elevationHint())
+			}
 			return fmt.Errorf("cannot move old binary: %w", err)
 		}
 		if err = os.Rename(tmpPath, execPath); err != nil {
@@ -312,9 +319,29 @@ func replaceBinary(newBinary []byte) error {
 	} else {
 		// Unix: atomic rename
 		if err = os.Rename(tmpPath, execPath); err != nil {
+			if errors.Is(err, os.ErrPermission) {
+				return fmt.Errorf("permission denied\n\n%s", elevationHint())
+			}
 			return fmt.Errorf("cannot replace binary: %w", err)
 		}
 	}
 
 	return nil
+}
+
+// elevationHint returns a platform-specific message telling the user
+// how to run the update with the required privileges.
+func elevationHint() string {
+	switch runtime.GOOS {
+	case "windows":
+		return "Run the update from an Administrator terminal:\n" +
+			"  1. Right-click Terminal / PowerShell → \"Run as administrator\"\n" +
+			"  2. Run: qrgen update"
+	case "darwin":
+		return "Run with elevated privileges:\n" +
+			"  sudo qrgen update"
+	default: // linux and others
+		return "Run with elevated privileges:\n" +
+			"  sudo qrgen update"
+	}
 }
