@@ -235,7 +235,8 @@ func (tw *TemplateWizard) Update(msg tea.KeyMsg) tea.Cmd {
 // handleToggle handles left/right/space for toggle and selector fields.
 func (tw *TemplateWizard) handleToggle(key string) {
 	if tw.contentType == templates.ContentWiFi {
-		if tw.focusIndex == 2 { // Encryption
+		switch tw.focusIndex {
+		case 2: // Encryption
 			switch key {
 			case "left":
 				if tw.wifiEncIndex > 0 {
@@ -248,7 +249,7 @@ func (tw *TemplateWizard) handleToggle(key string) {
 			case " ":
 				tw.wifiEncIndex = (tw.wifiEncIndex + 1) % 3
 			}
-		} else if tw.focusIndex == 3 { // Hidden
+		case 3: // Hidden
 			tw.wifiHidden = !tw.wifiHidden
 		}
 	}

@@ -9,8 +9,7 @@ var (
 	secondaryColor = lipgloss.AdaptiveColor{Light: "#059669", Dark: "#34D399"}
 	accentColor    = lipgloss.AdaptiveColor{Light: "#DC2626", Dark: "#F87171"}
 	subtleColor    = lipgloss.AdaptiveColor{Light: "#6B7280", Dark: "#9CA3AF"}
-	textColor      = lipgloss.AdaptiveColor{Light: "#1F2937", Dark: "#F9FAFB"}
-	bgColor        = lipgloss.AdaptiveColor{Light: "#F3F4F6", Dark: "#1F2937"}
+	textColor = lipgloss.AdaptiveColor{Light: "#1F2937", Dark: "#F9FAFB"}
 )
 
 // Styles defines all the styling for the TUI.

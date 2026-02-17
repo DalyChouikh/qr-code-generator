@@ -126,7 +126,7 @@ func fetchLatestRelease() (*githubRelease, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to reach GitHub API: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusTooManyRequests {
 		return nil, fmt.Errorf("GitHub API rate limit exceeded — try again later")
@@ -173,7 +173,7 @@ func downloadAsset(url string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("download returned status %d", resp.StatusCode)
@@ -202,7 +202,7 @@ func extractFromTarGz(data []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer gz.Close()
+	defer func() { _ = gz.Close() }()
 
 	tr := tar.NewReader(gz)
 	for {
@@ -240,7 +240,7 @@ func extractFromZip(data []byte) ([]byte, error) {
 				if err != nil {
 					return nil, err
 				}
-				defer rc.Close()
+				defer func() { _ = rc.Close() }()
 				return io.ReadAll(rc)
 			}
 		}
@@ -278,12 +278,12 @@ func replaceBinary(newBinary []byte) error {
 	// Clean up temp file on any error
 	defer func() {
 		if err != nil {
-			os.Remove(tmpPath)
+			_ = os.Remove(tmpPath)
 		}
 	}()
 
 	if _, err = tmpFile.Write(newBinary); err != nil {
-		tmpFile.Close()
+		_ = tmpFile.Close()
 		return err
 	}
 	if err = tmpFile.Close(); err != nil {
@@ -298,17 +298,17 @@ func replaceBinary(newBinary []byte) error {
 	if runtime.GOOS == "windows" {
 		// Windows: can't overwrite a running exe, so rename old one first
 		oldPath := execPath + ".old"
-		os.Remove(oldPath) // ignore error if it doesn't exist
+		_ = os.Remove(oldPath) // ignore error if it doesn't exist
 		if err = os.Rename(execPath, oldPath); err != nil {
 			return fmt.Errorf("cannot move old binary: %w", err)
 		}
 		if err = os.Rename(tmpPath, execPath); err != nil {
 			// Try to restore the old binary
-			os.Rename(oldPath, execPath)
+			_ = os.Rename(oldPath, execPath)
 			return fmt.Errorf("cannot move new binary into place: %w", err)
 		}
 		// Clean up old binary (may fail if still running, that's OK)
-		os.Remove(oldPath)
+		_ = os.Remove(oldPath)
 	} else {
 		// Unix: atomic rename
 		if err = os.Rename(tmpPath, execPath); err != nil {
