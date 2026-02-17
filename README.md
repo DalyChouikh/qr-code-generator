@@ -8,12 +8,16 @@ A beautiful terminal-based QR code generator built with Go, featuring an interac
 
 ## Features
 
-- 🎨 **Interactive TUI** - Step-by-step wizard for creating QR codes
-- 🖼️ **Multiple Formats** - Generate PNG or SVG output
-- 🎭 **Custom Colors** - Choose from predefined colors or enter custom hex values
-- 📐 **Flexible Dimensions** - Set size from 64 to 4096 pixels
-- 💾 **Flexible Output** - Save anywhere on your system
-- 🚀 **Cross-platform** - Works on macOS, Linux, and Windows
+- 🎨 **Interactive TUI** — Step-by-step wizard for creating QR codes
+- 📋 **Smart Content Templates** — Guided forms for WiFi, Contact (vCard), Email, SMS, URL, and plain text
+- 🖼️ **Multiple Formats** — Generate PNG or SVG output
+- 🎭 **Custom Colors** — Foreground & background color pickers with predefined palette or custom hex
+- 📐 **Flexible Dimensions** — Set size from 64 to 4096 pixels
+- 📂 **File Picker** — Built-in file browser for choosing output location
+- 📱 **Terminal Preview** — Scan the QR code directly in your terminal after generation
+- 📜 **Generation History** — Automatically saves your last 50 generations for quick re-use
+- 🔄 **Self-Updater** — Update to the latest version with a single command
+- 🚀 **Cross-Platform** — Works on macOS, Linux, and Windows
 
 ## Installation
 
@@ -78,17 +82,44 @@ make build
 Simply run the application and follow the interactive prompts:
 
 ```bash
-./qrgen
+qrgen
 ```
 
-### Steps
+### CLI Commands
 
-1. **Enter URL/Text** - The content to encode in the QR code
-2. **Choose Format** - Select PNG (raster) or SVG (vector)
-3. **Select Color** - Pick a predefined color or enter a custom hex value
-4. **Set Dimensions** - Specify the output size (64-4096 pixels)
-5. **Output Location** - Choose where to save the file
-6. **Review & Generate** - Confirm and create your QR code
+| Command | Description |
+|---------|-------------|
+| `qrgen` | Launch the interactive QR code generator |
+| `qrgen history` | Show your generation history |
+| `qrgen regen <id>` | Re-generate a QR code from history |
+| `qrgen update` | Update qrgen to the latest version |
+| `qrgen check-update` | Check if a newer version is available |
+| `qrgen --version` | Print version information |
+| `qrgen --help` | Show help message |
+
+> **Note:** On Linux/macOS, if qrgen is installed in `/usr/local/bin`, updating requires elevated privileges: `sudo qrgen update`. On Windows, run the update from an Administrator terminal.
+
+### Wizard Steps
+
+1. **Content Type** — Choose what to encode: URL, WiFi, Contact, Email, SMS, or plain text
+2. **Content Details** — Enter the content (guided form for WiFi/Contact/Email/SMS, or free text for URL/Text)
+3. **Output Format** — Select PNG (raster) or SVG (vector)
+4. **Foreground Color** — Pick the QR code color from a palette or enter a custom hex value
+5. **Background Color** — Pick the background color
+6. **Dimensions** — Set the output size (64–4096 pixels)
+7. **Output Location** — Type a path or browse with the built-in file picker
+8. **Review & Generate** — Confirm settings and generate your QR code
+
+### Content Templates
+
+| Type | Description | Example Output |
+|------|-------------|---------------|
+| 🔗 URL | Website link | Opens browser on scan |
+| 📶 WiFi | Network credentials (SSID, password, encryption) | Auto-connects to network |
+| 👤 Contact | vCard with name, phone, email, org, title, URL | Saves contact to phone |
+| ✉️ Email | Pre-filled email with address, subject, body | Opens email compose |
+| 💬 SMS | Pre-filled text message with phone and message | Opens messaging app |
+| 📝 Text | Plain text | Displays text |
 
 ### Keyboard Navigation
 
@@ -97,10 +128,12 @@ Simply run the application and follow the interactive prompts:
 | `Enter` | Confirm selection |
 | `↑/↓` or `j/k` | Navigate lists |
 | `←/→` or `h/l` | Switch options |
-| `Space` | Select option |
+| `Tab` / `Shift+Tab` | Next / previous field (in template forms) |
+| `Space` | Select option / toggle |
 | `Esc` | Go back |
 | `Ctrl+C` | Quit |
-| `c` | Enter custom color (in color step) |
+| `c` | Enter custom color (in color steps) |
+| `Tab` | Toggle file browser (in output step) |
 | `r` | Create another (after completion) |
 
 ## Project Structure
@@ -109,11 +142,26 @@ Simply run the application and follow the interactive prompts:
 qr-code-generator/
 ├── cmd/
 │   └── qrgen/
-│       └── main.go          # Application entry point
+│       └── main.go              # Application entry point & CLI commands
 ├── internal/
 │   ├── config/
-
-│       └── styles.go        # UI styling
+│   │   └── config.go            # Configuration types & color utilities
+│   ├── generator/
+│   │   ├── generator.go         # PNG & SVG QR code generation
+│   │   └── terminal.go          # Terminal QR preview renderer
+│   ├── history/
+│   │   └── history.go           # Generation history storage
+│   ├── templates/
+│   │   └── templates.go         # Content templates (WiFi, vCard, Email, SMS)
+│   ├── ui/
+│   │   ├── model.go             # Main TUI model & wizard logic
+│   │   ├── styles.go            # UI styling
+│   │   ├── filepicker.go        # Built-in file/directory browser
+│   │   └── template_wizard.go   # Template form UI component
+│   └── updater/
+│       └── updater.go           # Self-update via GitHub Releases
+├── .goreleaser.yaml
+├── Makefile
 ├── go.mod
 ├── go.sum
 └── README.md
@@ -128,24 +176,50 @@ qr-code-generator/
 
 ## Examples
 
-### Generate a QR code with default settings
+### Generate a URL QR code
 ```bash
-./qrgen
+qrgen
+# Select: URL
 # Enter: https://github.com
 # Select: PNG format
-# Select: Black color
+# Select: Black foreground, White background
 # Size: 256 (default)
 # Output: qrcode (saves as qrcode.png)
 ```
 
-### Generate a colored SVG QR code
+### Generate a WiFi QR code
 ```bash
-./qrgen
-# Enter: https://example.com
-# Select: SVG format
-# Select: Blue color (or press 'c' and enter #0066CC)
-# Size: 512
-# Output: ~/Downloads/my-qr (saves as ~/Downloads/my-qr.svg)
+qrgen
+# Select: WiFi
+# Enter SSID: MyNetwork
+# Enter Password: secret123
+# Select encryption: WPA/WPA2/WPA3
+# Hidden: No
+# Select: PNG format, colors, size, and output
+```
+
+### Generate a Contact card QR code
+```bash
+qrgen
+# Select: Contact
+# Fill in: First Name, Last Name, Phone, Email, etc.
+# Generates a vCard QR — scanning saves the contact to your phone
+```
+
+### View generation history
+```bash
+qrgen history
+```
+
+### Re-generate a previous QR code
+```bash
+qrgen regen 3   # Re-generate entry #3 from history
+```
+
+### Update to the latest version
+```bash
+qrgen check-update     # Check if update is available
+sudo qrgen update      # Update (use sudo on Linux/macOS if needed)
 ```
 
 ## License
