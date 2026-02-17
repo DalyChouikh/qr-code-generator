@@ -468,7 +468,7 @@ func (tw *TemplateWizard) viewWiFi(styles *Styles) string {
 		}
 		encBtns = append(encBtns, style.Render(enc.Name))
 	}
-	s.WriteString("  " + lipgloss.JoinHorizontal(lipgloss.Top, encBtns...))
+	s.WriteString(lipgloss.JoinHorizontal(lipgloss.Top, encBtns...))
 
 	// Hidden toggle
 	s.WriteString("\n\n")
