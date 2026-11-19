@@ -40,15 +40,17 @@ export default function Home() {
       </header>
 
       <main>
-        <div className="intro">
-          <h1>QR codes for links, WiFi, contacts, email and texts.</h1>
-          <p>
-            Fill in the form and download a PNG or SVG. Prefer the terminal? The same generator ships as{" "}
-            <a href="#install">a CLI</a>.
-          </p>
-        </div>
-
-        <Generator />
+        <Generator
+          intro={
+            <>
+              <h1>Make a QR code for a link, a WiFi network or a contact card.</h1>
+              <p>
+                Fill in the form, then download a PNG or SVG. The same generator runs in your terminal as{" "}
+                <a href="#install">qrgen</a>.
+              </p>
+            </>
+          }
+        />
         <Install />
 
         <section className="cli" id="cli" aria-labelledby="cli-title">

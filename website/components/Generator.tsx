@@ -56,7 +56,7 @@ interface Output {
   content: string;
 }
 
-export function Generator() {
+export function Generator({ intro }: { intro: React.ReactNode }) {
   const [api, setApi] = useState<Qrgen | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -119,6 +119,7 @@ export function Generator() {
 
   return (
     <section className="generator" id="generate" aria-label="QR code generator">
+      <div className="intro">{intro}</div>
       <form className="panel" onSubmit={(e) => e.preventDefault()}>
         <fieldset className="group">
           <legend>What goes in the code</legend>
@@ -133,7 +134,6 @@ export function Generator() {
                 onClick={() => setType(t.key)}
                 title={t.description}
               >
-                <span aria-hidden="true">{t.icon}</span>
                 {t.name}
               </button>
             ))}
@@ -219,7 +219,7 @@ export function Generator() {
       </form>
 
       <div className="sheet-wrap">
-        <figure className="sheet" style={{ background: bg }} aria-live="polite">
+        <figure className={output ? "sheet ready" : "sheet"} style={{ background: bg }} aria-live="polite">
           {output ? (
             // Blob URLs can't go through next/image.
             // eslint-disable-next-line @next/next/no-img-element
@@ -250,13 +250,15 @@ export function Generator() {
           </span>
         </div>
 
-        {output && (
-          <details className="payload">
-            <summary>Show encoded text</summary>
-            <pre>{output.content}</pre>
-          </details>
-        )}
-        <p className="privacy">Generated in your browser by the same Go code the CLI runs. Nothing is uploaded.</p>
+        <div className="sheet-notes">
+          {output && (
+            <details className="payload">
+              <summary>Show encoded text</summary>
+              <pre>{output.content}</pre>
+            </details>
+          )}
+          <p className="privacy">Made in your browser by the same Go code the CLI runs. Nothing is uploaded.</p>
+        </div>
       </div>
     </section>
   );
