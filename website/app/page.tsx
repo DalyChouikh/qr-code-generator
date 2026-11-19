@@ -1,5 +1,6 @@
 import { Generator } from "@/components/Generator";
 import { Install } from "@/components/Install";
+import { StructuredData } from "@/components/StructuredData";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { repoUrl } from "@/lib/site";
 
@@ -41,6 +42,7 @@ export default function Home() {
         </nav>
       </header>
 
+      <StructuredData />
       <main>
         <Generator
           intro={
