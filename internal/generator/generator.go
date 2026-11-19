@@ -29,6 +29,11 @@ func (g *Generator) Generate() error {
 		return fmt.Errorf("invalid configuration: %w", err)
 	}
 
+	data, err := g.Render()
+	if err != nil {
+		return err
+	}
+
 	// Ensure output directory exists
 	dir := filepath.Dir(g.config.OutputPath)
 	if dir != "" && dir != "." {
@@ -37,60 +42,45 @@ func (g *Generator) Generate() error {
 		}
 	}
 
+	if err := os.WriteFile(g.config.OutputPath, data, 0644); err != nil {
+		return fmt.Errorf("failed to write output file: %w", err)
+	}
+
+	return nil
+}
+
+// Render encodes the QR code in the configured format and returns the file contents.
+func (g *Generator) Render() ([]byte, error) {
+	if err := g.config.ValidateRendering(); err != nil {
+		return nil, fmt.Errorf("invalid configuration: %w", err)
+	}
+
+	qrc, err := qrcode.New(g.config.Content, qrcode.Medium)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create QR code: %w", err)
+	}
+
 	switch g.config.Format {
 	case config.FormatPNG:
-		return g.generatePNG()
+		return g.renderPNG(qrc)
 	case config.FormatSVG:
-		return g.generateSVG()
+		return []byte(g.createSVG(qrc)), nil
 	default:
-		return fmt.Errorf("unsupported format: %s", g.config.Format)
+		return nil, fmt.Errorf("unsupported format: %s", g.config.Format)
 	}
 }
 
-// generatePNG creates a PNG QR code.
-func (g *Generator) generatePNG() (err error) {
-	qrc, err := qrcode.New(g.config.Content, qrcode.Medium)
-	if err != nil {
-		return fmt.Errorf("failed to create QR code: %w", err)
-	}
-
+func (g *Generator) renderPNG(qrc *qrcode.QRCode) ([]byte, error) {
 	qrc.ForegroundColor = g.config.Foreground
 	qrc.BackgroundColor = g.config.Background
 	qrc.DisableBorder = false
 
-	img := qrc.Image(g.config.Size)
-
-	file, err := os.Create(g.config.OutputPath)
-	if err != nil {
-		return fmt.Errorf("failed to create output file: %w", err)
-	}
-	defer func() {
-		if cerr := file.Close(); cerr != nil && err == nil {
-			err = fmt.Errorf("failed to close output file: %w", cerr)
-		}
-	}()
-
-	if err = png.Encode(file, img); err != nil {
-		return fmt.Errorf("failed to encode PNG: %w", err)
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, qrc.Image(g.config.Size)); err != nil {
+		return nil, fmt.Errorf("failed to encode PNG: %w", err)
 	}
 
-	return nil
-}
-
-// generateSVG creates an SVG QR code.
-func (g *Generator) generateSVG() error {
-	qrc, err := qrcode.New(g.config.Content, qrcode.Medium)
-	if err != nil {
-		return fmt.Errorf("failed to create QR code: %w", err)
-	}
-
-	svg := g.createSVG(qrc)
-
-	if err := os.WriteFile(g.config.OutputPath, []byte(svg), 0644); err != nil {
-		return fmt.Errorf("failed to write SVG file: %w", err)
-	}
-
-	return nil
+	return buf.Bytes(), nil
 }
 
 // createSVG generates SVG content from a QR code.
