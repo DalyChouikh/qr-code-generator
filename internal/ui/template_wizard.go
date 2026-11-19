@@ -357,67 +357,47 @@ func (tw *TemplateWizard) UpdateBlink(msg tea.Msg) tea.Cmd {
 
 // tryEncode validates and encodes the form data. Returns true if valid.
 func (tw *TemplateWizard) tryEncode() bool {
+	data := tw.formData()
+	if data == nil || data.Validate() != nil {
+		return false
+	}
+	tw.result = data.Encode()
+	return true
+}
+
+// formData builds the template from the form's current (trimmed) values.
+func (tw *TemplateWizard) formData() templates.Template {
 	switch tw.contentType {
 	case templates.ContentWiFi:
-		ssid := strings.TrimSpace(tw.wifiSSID.Value())
-		if ssid == "" {
-			return false
-		}
-		encTypes := templates.WiFiEncryptionTypes()
-		data := &templates.WiFiData{
-			SSID:       ssid,
+		return &templates.WiFiData{
+			SSID:       strings.TrimSpace(tw.wifiSSID.Value()),
 			Password:   tw.wifiPassword.Value(),
-			Encryption: encTypes[tw.wifiEncIndex].Type,
+			Encryption: templates.WiFiEncryptionTypes()[tw.wifiEncIndex].Type,
 			Hidden:     tw.wifiHidden,
 		}
-		tw.result = data.Encode()
-		return true
-
 	case templates.ContentVCard:
-		firstName := strings.TrimSpace(tw.vcardFirstName.Value())
-		lastName := strings.TrimSpace(tw.vcardLastName.Value())
-		if firstName == "" && lastName == "" {
-			return false
-		}
-		data := &templates.VCardData{
-			FirstName:    firstName,
-			LastName:     lastName,
+		return &templates.VCardData{
+			FirstName:    strings.TrimSpace(tw.vcardFirstName.Value()),
+			LastName:     strings.TrimSpace(tw.vcardLastName.Value()),
 			Phone:        strings.TrimSpace(tw.vcardPhone.Value()),
 			Email:        strings.TrimSpace(tw.vcardEmail.Value()),
 			Organization: strings.TrimSpace(tw.vcardOrg.Value()),
 			Title:        strings.TrimSpace(tw.vcardTitle.Value()),
 			URL:          strings.TrimSpace(tw.vcardURL.Value()),
 		}
-		tw.result = data.Encode()
-		return true
-
 	case templates.ContentEmail:
-		addr := strings.TrimSpace(tw.emailAddress.Value())
-		if addr == "" {
-			return false
-		}
-		data := &templates.EmailData{
-			Address: addr,
+		return &templates.EmailData{
+			Address: strings.TrimSpace(tw.emailAddress.Value()),
 			Subject: strings.TrimSpace(tw.emailSubject.Value()),
 			Body:    strings.TrimSpace(tw.emailBody.Value()),
 		}
-		tw.result = data.Encode()
-		return true
-
 	case templates.ContentSMS:
-		phone := strings.TrimSpace(tw.smsPhone.Value())
-		if phone == "" {
-			return false
-		}
-		data := &templates.SMSData{
-			Phone:   phone,
+		return &templates.SMSData{
+			Phone:   strings.TrimSpace(tw.smsPhone.Value()),
 			Message: strings.TrimSpace(tw.smsMessage.Value()),
 		}
-		tw.result = data.Encode()
-		return true
 	}
-
-	return false
+	return nil
 }
 
 // IsConfirmed returns true if the form was submitted.

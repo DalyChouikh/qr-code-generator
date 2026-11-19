@@ -1,0 +1,1 @@
+qrgen: make QR codes for links, WiFi networks and contact cards

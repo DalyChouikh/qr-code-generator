@@ -6,6 +6,7 @@
 package templates
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 )
@@ -198,4 +199,56 @@ func WiFiEncryptionTypes() []struct {
 		{WiFiWEP, "WEP"},
 		{WiFiNone, "None (Open)"},
 	}
+}
+
+// Template is structured content that can be checked and encoded into a QR payload.
+type Template interface {
+	Validate() error
+	Encode() string
+}
+
+// Validation errors shared by every front end (TUI and website).
+var (
+	ErrSSIDRequired         = errors.New("SSID is required")
+	ErrUnknownEncryption    = errors.New("unknown WiFi encryption type")
+	ErrContactNameRequired  = errors.New("first or last name is required")
+	ErrEmailAddressRequired = errors.New("email address is required")
+	ErrSMSPhoneRequired     = errors.New("phone number is required")
+)
+
+// Validate reports whether the WiFi data has the fields needed to encode it.
+func (w *WiFiData) Validate() error {
+	if w.SSID == "" {
+		return ErrSSIDRequired
+	}
+	for _, e := range WiFiEncryptionTypes() {
+		if e.Type == w.Encryption {
+			return nil
+		}
+	}
+	return ErrUnknownEncryption
+}
+
+// Validate reports whether the contact has a name to encode.
+func (v *VCardData) Validate() error {
+	if v.FirstName == "" && v.LastName == "" {
+		return ErrContactNameRequired
+	}
+	return nil
+}
+
+// Validate reports whether the email has a recipient.
+func (e *EmailData) Validate() error {
+	if e.Address == "" {
+		return ErrEmailAddressRequired
+	}
+	return nil
+}
+
+// Validate reports whether the SMS has a recipient.
+func (s *SMSData) Validate() error {
+	if s.Phone == "" {
+		return ErrSMSPhoneRequired
+	}
+	return nil
 }

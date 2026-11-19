@@ -32,6 +32,19 @@ Thumbs.db
 *.svg
 !docs/*.png
 !docs/*.svg
+!website/public/**/*.png
+!website/public/**/*.svg
+!website/app/**/*.png
+!website/app/**/*.svg
+
+# Website
+website/node_modules/
+website/.next/
+website/out/
+website/next-env.d.ts
+website/*.tsbuildinfo
+website/public/qrgen.wasm
+website/public/wasm_exec.js
 
 # Dependency directories
 vendor/

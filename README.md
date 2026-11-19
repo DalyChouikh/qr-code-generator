@@ -167,6 +167,19 @@ qr-code-generator/
 └── README.md
 ```
 
+## Website
+
+`website/` is a Next.js static site that generates QR codes in the browser. It runs the CLI's own Go generator compiled to WebAssembly (`cmd/qrgen-wasm`), so web and terminal output are identical and nothing is uploaded.
+
+```bash
+make website-dev   # build qrgen.wasm and start the dev server
+make website       # build qrgen.wasm and export the static site to website/out
+```
+
+Requires Go and Node.js 20+. Run `npm install` in `website/` once before `make website-dev`.
+
+When building for deployment, set `NEXT_PUBLIC_SITE_URL` to the site's public URL (for example `NEXT_PUBLIC_SITE_URL=https://qrgen.example.com make website`). It is used for the canonical link, the sitemap and social-media previews.
+
 ## Dependencies
 
 - [Bubbletea](https://github.com/charmbracelet/bubbletea) - TUI framework

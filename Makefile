@@ -1,4 +1,4 @@
-.PHONY: build run clean test lint snapshot release-dry
+.PHONY: build run clean test lint snapshot release-dry wasm website website-dev
 
 BINARY   := qrgen
 VERSION  := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
@@ -15,10 +15,26 @@ build:
 run: build
 	./$(BINARY)
 
+## wasm: Compile the generator to WebAssembly for the website
+wasm:
+	mkdir -p website/public
+	GOOS=js GOARCH=wasm go build -ldflags "-s -w" -o website/public/qrgen.wasm ./cmd/qrgen-wasm
+	cp "$$(go env GOROOT)/lib/wasm/wasm_exec.js" website/public/wasm_exec.js
+
+## website: Build the static website into website/out
+website: wasm
+	cd website && npm ci && npm run build
+
+## website-dev: Run the website dev server
+website-dev: wasm
+	cd website && npm run dev
+
 ## clean: Remove build artifacts
 clean:
 	rm -f $(BINARY)
 	rm -rf dist/
+	rm -rf website/out website/.next
+	rm -f website/public/qrgen.wasm website/public/wasm_exec.js
 
 ## test: Run tests
 test:

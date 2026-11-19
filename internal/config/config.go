@@ -39,8 +39,19 @@ func DefaultConfig() *QRConfig {
 	}
 }
 
-// Validate checks if the configuration is valid.
+// Validate checks if the configuration is valid for writing to disk.
 func (c *QRConfig) Validate() error {
+	if err := c.ValidateRendering(); err != nil {
+		return err
+	}
+	if c.OutputPath == "" {
+		return fmt.Errorf("output path cannot be empty")
+	}
+	return nil
+}
+
+// ValidateRendering checks the options needed to render a QR code, ignoring the output path.
+func (c *QRConfig) ValidateRendering() error {
 	if c.Content == "" {
 		return fmt.Errorf("content cannot be empty")
 	}
@@ -49,9 +60,6 @@ func (c *QRConfig) Validate() error {
 	}
 	if c.Format != FormatPNG && c.Format != FormatSVG {
 		return fmt.Errorf("format must be 'png' or 'svg'")
-	}
-	if c.OutputPath == "" {
-		return fmt.Errorf("output path cannot be empty")
 	}
 	return nil
 }
