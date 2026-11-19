@@ -5,6 +5,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"syscall/js"
@@ -13,6 +14,16 @@ import (
 	"github.com/DalyChouikh/internal/generator"
 	"github.com/DalyChouikh/internal/templates"
 )
+
+// contentTypeKeys are the stable identifiers the website uses; display names may change freely.
+var contentTypeKeys = map[templates.ContentType]string{
+	templates.ContentURL:   "url",
+	templates.ContentWiFi:  "wifi",
+	templates.ContentVCard: "contact",
+	templates.ContentEmail: "email",
+	templates.ContentSMS:   "sms",
+	templates.ContentText:  "text",
+}
 
 type generateRequest struct {
 	Type   string            `json:"type"`
@@ -34,17 +45,12 @@ func main() {
 	select {}
 }
 
-func contentTypeKey(info templates.ContentTypeInfo) string {
-	return strings.ToLower(info.Name)
-}
-
 func contentTypes(js.Value, []js.Value) any {
 	var out []any
 	for _, t := range templates.AvailableTypes() {
 		out = append(out, map[string]any{
-			"key":         contentTypeKey(t),
+			"key":         contentTypeKeys[t.Type],
 			"name":        t.Name,
-			"icon":        strings.TrimSpace(t.Icon),
 			"description": t.Description,
 		})
 	}
@@ -69,7 +75,7 @@ func colors(js.Value, []js.Value) any {
 
 func generate(_ js.Value, args []js.Value) any {
 	if len(args) != 1 {
-		return errorResult(fmt.Errorf("generate expects one JSON argument"))
+		return errorResult(errors.New("generate expects one JSON argument"))
 	}
 
 	var req generateRequest
@@ -77,20 +83,14 @@ func generate(_ js.Value, args []js.Value) any {
 		return errorResult(fmt.Errorf("invalid request: %w", err))
 	}
 
-	content, err := encodeContent(req.Type, req.Fields)
+	content, err := encodeContent(req.Type, trimFields(req.Fields))
 	if err != nil {
 		return errorResult(err)
 	}
 
-	cfg := config.DefaultConfig()
-	cfg.Content = content
-	cfg.Format = config.OutputFormat(req.Format)
-	cfg.Size = req.Size
-	if cfg.Foreground, err = config.ParseHexColor(req.FG); err != nil {
-		return errorResult(fmt.Errorf("foreground: %w", err))
-	}
-	if cfg.Background, err = config.ParseHexColor(req.BG); err != nil {
-		return errorResult(fmt.Errorf("background: %w", err))
+	cfg, err := buildConfig(req, content)
+	if err != nil {
+		return errorResult(err)
 	}
 
 	data, err := generator.New(cfg).Render()
@@ -98,45 +98,66 @@ func generate(_ js.Value, args []js.Value) any {
 		return errorResult(err)
 	}
 
-	bytes := js.Global().Get("Uint8Array").New(len(data))
-	js.CopyBytesToJS(bytes, data)
+	jsData := js.Global().Get("Uint8Array").New(len(data))
+	js.CopyBytesToJS(jsData, data)
 
-	mime := "image/png"
-	if cfg.Format == config.FormatSVG {
-		mime = "image/svg+xml"
-	}
-
-	return map[string]any{"data": bytes, "mime": mime, "content": content}
+	return map[string]any{"data": jsData, "mime": mimeType(cfg.Format), "content": content}
 }
 
-// encodeContent mirrors the TUI form handling: fields are trimmed (except the WiFi password)
-// and the same required fields are enforced before calling the template encoders.
-func encodeContent(contentType string, raw map[string]string) (string, error) {
-	f := make(map[string]string, len(raw))
-	for k, v := range raw {
-		f[k] = strings.TrimSpace(v)
-	}
-	f["password"] = raw["password"]
+func buildConfig(req generateRequest, content string) (*config.QRConfig, error) {
+	cfg := config.DefaultConfig()
+	cfg.Content = content
+	cfg.Format = config.OutputFormat(req.Format)
+	cfg.Size = req.Size
 
-	switch contentType {
-	case "url", "text":
-		return f["content"], nil
-	case "wifi":
-		if f["ssid"] == "" {
-			return "", fmt.Errorf("SSID is required")
-		}
-		data := templates.WiFiData{
+	var err error
+	if cfg.Foreground, err = config.ParseHexColor(req.FG); err != nil {
+		return nil, fmt.Errorf("foreground: %w", err)
+	}
+	if cfg.Background, err = config.ParseHexColor(req.BG); err != nil {
+		return nil, fmt.Errorf("background: %w", err)
+	}
+	return cfg, nil
+}
+
+// trimFields matches the TUI, which trims every field except the WiFi password.
+func trimFields(raw map[string]string) map[string]string {
+	fields := make(map[string]string, len(raw))
+	for name, value := range raw {
+		fields[name] = strings.TrimSpace(value)
+	}
+	if password, ok := raw["password"]; ok {
+		fields["password"] = password
+	}
+	return fields
+}
+
+func encodeContent(key string, fields map[string]string) (string, error) {
+	if key == contentTypeKeys[templates.ContentURL] || key == contentTypeKeys[templates.ContentText] {
+		return fields["content"], nil
+	}
+
+	data, err := templateFor(key, fields)
+	if err != nil {
+		return "", err
+	}
+	if err := data.Validate(); err != nil {
+		return "", err
+	}
+	return data.Encode(), nil
+}
+
+func templateFor(key string, f map[string]string) (templates.Template, error) {
+	switch key {
+	case contentTypeKeys[templates.ContentWiFi]:
+		return &templates.WiFiData{
 			SSID:       f["ssid"],
 			Password:   f["password"],
 			Encryption: templates.WiFiEncryption(f["encryption"]),
 			Hidden:     f["hidden"] == "true",
-		}
-		if data.Encryption == "" {
-			data.Encryption = templates.WiFiWPA
-		}
-		return data.Encode(), nil
-	case "contact":
-		data := templates.VCardData{
+		}, nil
+	case contentTypeKeys[templates.ContentVCard]:
+		return &templates.VCardData{
 			FirstName:    f["firstName"],
 			LastName:     f["lastName"],
 			Phone:        f["phone"],
@@ -144,26 +165,21 @@ func encodeContent(contentType string, raw map[string]string) (string, error) {
 			Organization: f["organization"],
 			Title:        f["title"],
 			URL:          f["url"],
-		}
-		if data.FirstName == "" && data.LastName == "" {
-			return "", fmt.Errorf("first or last name is required")
-		}
-		return data.Encode(), nil
-	case "email":
-		if f["address"] == "" {
-			return "", fmt.Errorf("email address is required")
-		}
-		data := templates.EmailData{Address: f["address"], Subject: f["subject"], Body: f["body"]}
-		return data.Encode(), nil
-	case "sms":
-		if f["phone"] == "" {
-			return "", fmt.Errorf("phone number is required")
-		}
-		data := templates.SMSData{Phone: f["phone"], Message: f["message"]}
-		return data.Encode(), nil
+		}, nil
+	case contentTypeKeys[templates.ContentEmail]:
+		return &templates.EmailData{Address: f["address"], Subject: f["subject"], Body: f["body"]}, nil
+	case contentTypeKeys[templates.ContentSMS]:
+		return &templates.SMSData{Phone: f["phone"], Message: f["message"]}, nil
 	default:
-		return "", fmt.Errorf("unknown content type: %q", contentType)
+		return nil, fmt.Errorf("unknown content type: %q", key)
 	}
+}
+
+func mimeType(format config.OutputFormat) string {
+	if format == config.FormatSVG {
+		return "image/svg+xml"
+	}
+	return "image/png"
 }
 
 func errorResult(err error) any {
