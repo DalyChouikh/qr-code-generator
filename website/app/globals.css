@@ -1,16 +1,22 @@
 /*
- * Black ink on white paper, like a printed QR code. Yellow is the phone camera's
- * detection bracket: used for brackets, hover and focus only, never for text.
- * Light only on purpose: the product is a printed black-on-white mark.
+ * Dark (default) is the camera viewfinder: a lit code on black. Light is the printed
+ * page: black ink on white. Yellow is the camera's detection bracket in both themes,
+ * used for brackets, hover and focus only, never for text.
  */
 :root {
-  --paper: #ffffff;
-  --ink: #000000;
-  --graphite: #4a4a4a;
-  --rule: #d6d6d6;
-  --wash: #f3f3f3;
+  --paper: #000000;
+  --ink: #f4f4f4;
+  --graphite: #a6a6a6;
+  --rule: #333333;
+  --wash: #161616;
   --scan: #ffd60a;
-  --error: #b3261e;
+  --error: #ff7a6e;
+  --placeholder: #8a8a8a;
+  --swatch-edge: rgb(255 255 255 / 0.28);
+  --command-bg: #161616;
+  --command-fg: #f4f4f4;
+  --command-edge: #333333;
+  color-scheme: dark;
 
   --font-sans: "Schibsted Grotesk", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
@@ -23,6 +29,20 @@
 
   --gutter: clamp(16px, 4vw, 48px);
   --radius: 2px;
+}
+
+:root[data-theme="light"] {
+  --paper: #ffffff;
+  --ink: #000000;
+  --graphite: #4a4a4a;
+  --rule: #d6d6d6;
+  --wash: #f3f3f3;
+  --error: #b3261e;
+  --placeholder: #767676;
+  --swatch-edge: rgb(0 0 0 / 0.2);
+  --command-bg: #000000;
+  --command-fg: #ffffff;
+  --command-edge: #000000;
   color-scheme: light;
 }
 
@@ -66,6 +86,7 @@ a {
 
 a:hover {
   background: var(--scan);
+  color: #000000;
 }
 
 code,
@@ -131,9 +152,31 @@ main,
   gap: clamp(14px, 3vw, 28px);
 }
 
+.site-header nav {
+  align-items: center;
+}
+
 .site-header nav a {
   font-weight: 600;
   text-decoration: none;
+}
+
+.theme-toggle {
+  padding: 6px 10px;
+  border: 1.5px solid var(--ink);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--step--1);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.theme-toggle:hover {
+  background: var(--scan);
+  border-color: var(--scan);
+  color: #000000;
 }
 
 /* Generator: the page's opening. Form on the left, the live code on the right. */
@@ -218,6 +261,7 @@ main,
 
 .type:hover {
   background: var(--scan);
+  color: #000000;
 }
 
 .type[aria-checked="true"] {
@@ -273,7 +317,7 @@ textarea {
 
 input::placeholder,
 textarea::placeholder {
-  color: #767676;
+  color: var(--placeholder);
 }
 
 textarea {
@@ -315,6 +359,7 @@ input[aria-invalid="true"] {
 
 .segmented button:hover {
   background: var(--scan);
+  color: #000000;
 }
 
 .segmented button[aria-checked="true"] {
@@ -353,7 +398,7 @@ input[aria-invalid="true"] {
   width: 30px;
   height: 30px;
   border-radius: var(--radius);
-  border: 1px solid rgb(0 0 0 / 0.2);
+  border: 1px solid var(--swatch-edge);
   cursor: pointer;
   padding: 0;
 }
@@ -455,7 +500,8 @@ input[aria-invalid="true"] {
   padding: 24px;
   max-width: 26ch;
   text-align: center;
-  color: var(--graphite);
+  /* Sits on the code's own background color (white by default), not the page. */
+  color: #4a4a4a;
   font-weight: 600;
 }
 
@@ -486,13 +532,13 @@ input[aria-invalid="true"] {
 
 .button.primary:hover {
   background: var(--scan);
-  color: var(--ink);
+  color: #000000;
 }
 
 .button[aria-disabled="true"] {
   background: var(--wash);
   border-color: var(--rule);
-  color: #767676;
+  color: var(--placeholder);
   cursor: not-allowed;
 }
 
@@ -511,6 +557,7 @@ input[aria-invalid="true"] {
 
 .ghost:hover {
   background: var(--scan);
+  color: #000000;
 }
 
 .meta {
@@ -631,8 +678,9 @@ input[aria-invalid="true"] {
   gap: 12px;
   padding: 10px 10px 10px 14px;
   border-radius: var(--radius);
-  background: var(--ink);
-  color: var(--paper);
+  background: var(--command-bg);
+  color: var(--command-fg);
+  border: 1px solid var(--command-edge);
   min-width: 0;
 }
 
@@ -650,15 +698,15 @@ input[aria-invalid="true"] {
 }
 
 .command .ghost {
-  background: var(--ink);
+  background: transparent;
   border-color: #6b6b6b;
-  color: var(--paper);
+  color: var(--command-fg);
 }
 
 .command .ghost:hover {
   background: var(--scan);
   border-color: var(--scan);
-  color: var(--ink);
+  color: #000000;
 }
 
 .downloads {

@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { JetBrains_Mono, Schibsted_Grotesk } from "next/font/google";
+import { themeInitScript } from "@/lib/theme";
 import "./globals.css";
 
 const sans = Schibsted_Grotesk({ subsets: ["latin"], variable: "--font-sans", display: "swap" });
@@ -12,13 +13,16 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#FFFFFF",
-  colorScheme: "light",
+  themeColor: "#000000",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${sans.variable} ${mono.variable}`}>
+    // The init script may set data-theme before React hydrates.
+    <html lang="en" className={`${sans.variable} ${mono.variable}`} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+      </head>
       <body>{children}</body>
     </html>
   );

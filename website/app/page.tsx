@@ -1,5 +1,6 @@
 import { Generator } from "@/components/Generator";
 import { Install } from "@/components/Install";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { repoUrl } from "@/lib/site";
 
 const COMMANDS = [
@@ -36,6 +37,7 @@ export default function Home() {
           <a href="#install">Install</a>
           <a href="#cli">Commands</a>
           <a href={repoUrl}>GitHub</a>
+          <ThemeToggle />
         </nav>
       </header>
 
