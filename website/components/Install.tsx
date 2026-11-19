@@ -3,10 +3,15 @@
 import { useEffect, useState } from "react";
 import { repo, rawUrl, releasesUrl } from "@/lib/site";
 import { CopyCommand } from "./CopyCommand";
+import { SegmentedControl } from "./SegmentedControl";
 
 type OS = "macos" | "linux" | "windows";
 
-const OS_LABELS: Record<OS, string> = { macos: "macOS", linux: "Linux", windows: "Windows" };
+const OS_OPTIONS = [
+  { value: "macos", label: "macOS" },
+  { value: "linux", label: "Linux" },
+  { value: "windows", label: "Windows" },
+] as const satisfies readonly { value: OS; label: string }[];
 
 interface Method {
   title: string;
@@ -55,9 +60,9 @@ interface Release {
 }
 
 function detectOS(): OS {
-  const ua = navigator.userAgent.toLowerCase();
-  if (ua.includes("win")) return "windows";
-  if (ua.includes("mac")) return "macos";
+  const platform = navigator.userAgent.toLowerCase();
+  if (platform.includes("windows")) return "windows";
+  if (platform.includes("mac os") || platform.includes("macintosh")) return "macos";
   return "linux";
 }
 
@@ -89,23 +94,16 @@ export function Install() {
         </p>
       </div>
 
-      <div className="tabs" role="tablist" aria-label="Operating system">
-        {(Object.keys(OS_LABELS) as OS[]).map((key) => (
-          <button
-            key={key}
-            role="tab"
-            type="button"
-            id={`tab-${key}`}
-            aria-selected={os === key}
-            aria-controls="install-panel"
-            onClick={() => setOS(key)}
-          >
-            {OS_LABELS[key]}
-          </button>
-        ))}
-      </div>
+      <SegmentedControl
+        label="Operating system"
+        showLabel={false}
+        variant="tabs"
+        options={OS_OPTIONS}
+        value={os}
+        onChange={setOS}
+      />
 
-      <div className="install-panel" id="install-panel" role="tabpanel" aria-labelledby={`tab-${os}`}>
+      <div className="install-panel">
         {METHODS[os].map((m) => (
           <div className="method" key={m.title}>
             <h3>{m.title}</h3>

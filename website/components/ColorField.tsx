@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useId, useState } from "react";
 import type { NamedColor } from "@/lib/qrgen";
 
-const HEX = /^#?[0-9a-fA-F]{6}$/;
+const HEX_COLOR = /^#?[0-9a-fA-F]{6}$/;
 
 export function ColorField({
   label,
@@ -17,15 +17,14 @@ export function ColorField({
   palette: NamedColor[];
 }) {
   const id = useId();
-  const [draft, setDraft] = useState(value);
-  useEffect(() => setDraft(value), [value]);
+  // Holds partial hex input while typing; null means "show the committed value".
+  const [draft, setDraft] = useState<string | null>(null);
+  const shown = draft ?? value;
 
-  const commit = (raw: string) => {
+  const editHex = (raw: string) => {
     setDraft(raw);
-    if (HEX.test(raw.trim())) onChange(normalize(raw));
+    if (HEX_COLOR.test(raw.trim())) onChange(normalizeHex(raw));
   };
-
-  const invalid = !HEX.test(draft.trim());
 
   return (
     <div className="field color-field">
@@ -36,7 +35,7 @@ export function ColorField({
             key={c.name}
             type="button"
             role="radio"
-            aria-checked={value.toUpperCase() === c.hex}
+            aria-checked={value === c.hex}
             aria-label={c.name}
             title={c.name}
             className="swatch"
@@ -50,23 +49,23 @@ export function ColorField({
           type="color"
           aria-label={`${label}: pick any color`}
           value={value.toLowerCase()}
-          onChange={(e) => onChange(normalize(e.target.value))}
+          onChange={(e) => onChange(normalizeHex(e.target.value))}
         />
         <input
           type="text"
           aria-label={`${label}: hex value`}
-          aria-invalid={invalid}
+          aria-invalid={!HEX_COLOR.test(shown.trim())}
           spellCheck={false}
           maxLength={7}
-          value={draft}
-          onChange={(e) => commit(e.target.value)}
-          onBlur={() => setDraft(value)}
+          value={shown}
+          onChange={(e) => editHex(e.target.value)}
+          onBlur={() => setDraft(null)}
         />
       </div>
     </div>
   );
 }
 
-function normalize(raw: string) {
+function normalizeHex(raw: string) {
   return `#${raw.trim().replace(/^#/, "").toUpperCase()}`;
 }

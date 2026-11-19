@@ -3,7 +3,6 @@ export type ContentTypeKey = "url" | "wifi" | "contact" | "email" | "sms" | "tex
 export interface ContentType {
   key: ContentTypeKey;
   name: string;
-  icon: string;
   description: string;
 }
 
@@ -52,7 +51,6 @@ declare global {
     importObject: WebAssembly.Imports;
     run(instance: WebAssembly.Instance): Promise<void>;
   }
-  // eslint-disable-next-line no-var
   var qrgen: QrgenGlobal | undefined;
 }
 

@@ -119,7 +119,6 @@ main,
   padding-inline: var(--gutter);
 }
 
-/* Header */
 .site-header {
   display: flex;
   align-items: center;
@@ -234,41 +233,6 @@ main,
   letter-spacing: -0.015em;
 }
 
-/* Content type picker: selected type is a solid black module. */
-.types {
-  display: flex;
-  flex-wrap: wrap;
-  border: 1.5px solid var(--ink);
-  border-radius: var(--radius);
-  width: fit-content;
-  max-width: 100%;
-}
-
-.type {
-  padding: 10px 16px;
-  border: 0;
-  border-right: 1.5px solid var(--ink);
-  background: var(--paper);
-  color: var(--ink);
-  font: inherit;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.type:last-child {
-  border-right: 0;
-}
-
-.type:hover {
-  background: var(--scan);
-  color: #000000;
-}
-
-.type[aria-checked="true"] {
-  background: var(--ink);
-  color: var(--paper);
-}
-
 .fields {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -334,37 +298,87 @@ input[aria-invalid="true"] {
   gap: 8px;
 }
 
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* One choice from a few: native radios, so arrow keys and forms work. The chosen one is a solid module. */
 .segmented {
   display: inline-flex;
   flex-wrap: wrap;
   justify-self: start;
+  width: fit-content;
+  max-width: 100%;
   border: 1.5px solid var(--ink);
   border-radius: var(--radius);
 }
 
-.segmented button {
-  border: 0;
+.segment span {
+  display: block;
   padding: 8px 14px;
   background: var(--paper);
   color: var(--ink);
-  font: inherit;
   font-size: var(--step--1);
   font-weight: 600;
   cursor: pointer;
 }
 
-.segmented button + button {
+.segment + .segment span {
   border-left: 1.5px solid var(--ink);
 }
 
-.segmented button:hover {
+.segment span:hover {
   background: var(--scan);
   color: #000000;
 }
 
-.segmented button[aria-checked="true"] {
+.segment input:checked + span {
   background: var(--ink);
   color: var(--paper);
+}
+
+.segment input:focus-visible + span {
+  outline: 3px solid var(--scan);
+  outline-offset: -3px;
+}
+
+.segmented.large .segment span {
+  padding: 10px 16px;
+  font-size: var(--step-0);
+}
+
+.segmented.tabs {
+  display: flex;
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.segmented.tabs .segment span {
+  margin-bottom: -1px;
+  padding: 10px 18px;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  background: none;
+  color: var(--graphite);
+  font-size: var(--step-0);
+  font-weight: 700;
+}
+
+.segmented.tabs .segment span:hover {
+  color: var(--ink);
+}
+
+.segmented.tabs .segment input:checked + span {
+  background: none;
+  color: var(--ink);
+  border-bottom-color: var(--ink);
 }
 
 .check {
@@ -594,7 +608,6 @@ input[aria-invalid="true"] {
   font-size: var(--step--1);
 }
 
-/* Sections */
 .install,
 .cli {
   margin-top: clamp(72px, 10vw, 128px);
@@ -620,33 +633,6 @@ input[aria-invalid="true"] {
   margin: 0;
   color: var(--graphite);
   max-width: 60ch;
-}
-
-.tabs {
-  display: flex;
-  gap: 0;
-  border-bottom: 1px solid var(--rule);
-}
-
-.tabs button {
-  padding: 10px 18px;
-  margin-bottom: -1px;
-  border: 0;
-  border-bottom: 3px solid transparent;
-  background: none;
-  color: var(--graphite);
-  font: inherit;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.tabs button:hover {
-  color: var(--ink);
-}
-
-.tabs button[aria-selected="true"] {
-  color: var(--ink);
-  border-bottom-color: var(--ink);
 }
 
 .install-panel {
@@ -835,8 +821,11 @@ kbd {
     gap: 18px;
   }
 
-  .type {
+  .segmented.large .segment {
     flex: 1 1 33%;
+  }
+
+  .segmented.large .segment span {
     border-bottom: 1.5px solid var(--ink);
     margin-bottom: -1.5px;
   }
