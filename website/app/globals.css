@@ -792,12 +792,11 @@ kbd {
     grid-template-columns: minmax(0, 1fr);
     grid-template-areas:
       "intro"
-      "sheet"
-      "form";
+      "form"
+      "sheet";
     grid-template-rows: auto;
   }
 
-  /* On narrow screens show the code right under the headline, so edits are visible. */
   .sheet-wrap {
     position: static;
     max-width: 400px;
